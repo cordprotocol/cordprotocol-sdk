@@ -26,3 +26,15 @@ export type { StandardScope } from './permissions.js';
 // Crypto internals — exposed for advanced use (e.g. custom backends)
 export { activeCryptoBackend, hashSHA256 } from './crypto/signatures.js';
 export type { CryptoBackend } from './crypto/signatures.js';
+
+// Hosted API client
+export { CordProtocol } from './client.js';
+export type { CordProtocolConfig, AgentRegistration } from './client.js';
+
+// Standalone registry functions
+export {
+  registerAgent,
+  lookupAgent,
+  checkRevocationStatus,
+  revokeCredential,
+} from './registry.js';

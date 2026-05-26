@@ -317,6 +317,81 @@ const result = await verifyCredential(token); // accepts base64 or object
 
 ---
 
+---
+
+## Hosted API Integration — `CordProtocol` Class
+
+The `CordProtocol` class wraps the core functions with optional registry
+auto-posting and revocation checking via the Cord Protocol hosted API
+(`https://api.cordprotocol.dev`).
+
+```typescript
+import { CordProtocol } from '@cordprotocol/sdk';
+
+const cord = new CordProtocol({
+  registry: true,                     // auto-post public key to registry on issue
+  apiKey: process.env.CORD_API_KEY,   // required for revocation
+  apiUrl: 'https://api.cordprotocol.dev', // optional — override default
+});
+
+// Issues credential + registers public key in registry (fails silently)
+const credential = await cord.issueCredential(
+  { agentId: 'my-agent', issuedTo: 'Acme Corp', permissions: ['read:data'] },
+  privateKeyBase64,
+);
+
+// Local verification + revocation check (when apiKey provided)
+const result = await cord.verifyCredential(credential);
+
+// Revoke a credential (requires apiKey)
+await cord.revokeCredential(credential.id, credential.agentId, 'decommissioned');
+
+// Look up a registered agent (returns null if not found)
+const reg = await cord.lookupAgent('my-agent');
+```
+
+`issueCredential` always returns the credential even if the registry POST fails —
+network errors are swallowed silently. `verifyCredential` only calls the revocation
+endpoint when the credential is locally valid (signature + expiry both pass).
+
+---
+
+## Standalone Registry Functions
+
+```typescript
+import {
+  registerAgent,
+  lookupAgent,
+  checkRevocationStatus,
+  revokeCredential,
+} from '@cordprotocol/sdk';
+
+await registerAgent('my-agent', publicKeyBase64, 'Acme Corp', 'acme.com');
+
+const reg = await lookupAgent('my-agent'); // AgentRegistration | null
+
+const status = await checkRevocationStatus(credential.id);
+// { revoked: boolean, revokedAt?: string, reason?: string }
+
+await revokeCredential(credential.id, credential.agentId, apiKey, 'reason');
+```
+
+`AgentRegistration` type:
+```typescript
+interface AgentRegistration {
+  id: string;              // registry record ID
+  agentId: string;
+  publicKey: string;       // base64 Ed25519 public key
+  issuedTo: string;
+  domain?: string;
+  registeredAt: string;    // ISO 8601
+  credentialCount: number;
+  active: boolean;
+}
+```
+
+---
+
 ## What NOT to Use It For
 
 - **User authentication** — Cord is for non-human callers. Use Okta, Auth0, or
@@ -325,8 +400,6 @@ const result = await verifyCredential(token); // accepts base64 or object
   Use a gateway like Kong or Apigee for rate limits.
 - **Secret storage** — credentials are signed JSON, not encrypted. Don't put
   secrets in `agentId`, `issuedTo`, or `attestationData`.
-- **Credential revocation (Phase 1)** — there is no revocation registry yet.
-  Mitigate this by issuing short-lived credentials (`expiresIn: '1h'`).
 - **Server-side session management** — credentials are stateless. If you need
   session state, store it separately; the credential just proves authorization.
 

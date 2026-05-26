@@ -694,6 +694,92 @@ Issue a fresh credential.
 
 ---
 
+## Hosted API Integration — `CordProtocol` Class
+
+The `CordProtocol` class adds optional registry auto-posting and revocation
+checking via the hosted Cord Protocol API at `https://api.cordprotocol.dev`.
+The standalone `issueCredential`, `verifyCredential`, etc. are unchanged.
+
+```typescript
+import { CordProtocol } from '@cordprotocol/sdk';
+
+const cord = new CordProtocol({
+  registry: true,                     // auto-register public key after issuance
+  apiKey: process.env.CORD_API_KEY,   // required for revocation
+  // apiUrl: 'https://api.cordprotocol.dev'  // optional override
+});
+
+// Issue + auto-register (registry failure is silent — always returns credential)
+const credential = await cord.issueCredential(
+  { agentId: 'my-agent', issuedTo: 'Acme Corp', permissions: ['read:data'] },
+  privateKeyBase64,
+);
+
+// Local verify + revocation check (revocation only runs when locally valid)
+const result = await cord.verifyCredential(credential);
+// result.valid === false if revoked, with errors: ['Credential has been revoked: reason']
+
+// Revoke (requires apiKey)
+await cord.revokeCredential(credential.id, credential.agentId, 'decommissioned');
+
+// Registry lookup
+const reg = await cord.lookupAgent('my-agent'); // AgentRegistration | null
+```
+
+### `CordProtocolConfig`
+
+```typescript
+interface CordProtocolConfig {
+  registry?: boolean;  // default: false
+  apiKey?: string;     // required for revokeCredential and revocation checks
+  apiUrl?: string;     // default: 'https://api.cordprotocol.dev'
+}
+```
+
+### `AgentRegistration`
+
+```typescript
+interface AgentRegistration {
+  id: string;
+  agentId: string;
+  publicKey: string;      // base64 Ed25519 public key
+  issuedTo: string;
+  domain?: string;
+  registeredAt: string;   // ISO 8601
+  credentialCount: number;
+  active: boolean;
+}
+```
+
+---
+
+## Standalone Registry Functions
+
+Lower-level functions for direct registry and revocation access:
+
+```typescript
+import {
+  registerAgent,
+  lookupAgent,
+  checkRevocationStatus,
+  revokeCredential,
+} from '@cordprotocol/sdk';
+
+// POST /v1/registry/agents
+await registerAgent(agentId, publicKeyBase64, issuedTo, domain?, apiUrl?);
+
+// GET /v1/registry/agents/{agentId} — returns null on 404
+const reg = await lookupAgent(agentId, apiUrl?);
+
+// GET /v1/credentials/{id}/status
+const { revoked, revokedAt, reason } = await checkRevocationStatus(credentialId, apiUrl?);
+
+// POST /v1/credentials/revoke (Authorization: Bearer apiKey)
+await revokeCredential(credentialId, agentId, apiKey, reason?, apiUrl?);
+```
+
+---
+
 ## Roadmap
 
 - **Phase 2:** Revocation registry (on-chain or off-chain) to support immediate
@@ -714,5 +800,5 @@ Issue a fresh credential.
 - **Language:** TypeScript (ships compiled JS + `.d.ts`)
 - **Crypto:** `@noble/ed25519` (audited, zero-dependency)
 - **CLI:** `cord` (commander-based)
-- **Tests:** 38 passing (Vitest)
+- **Tests:** 63 passing (Vitest)
 - **Website:** https://cordprotocol.dev

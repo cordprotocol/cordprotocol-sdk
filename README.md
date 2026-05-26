@@ -230,6 +230,94 @@ interface AgentCredential {
 
 ---
 
+## Hosted API Integration
+
+The `CordProtocol` class wraps the standalone functions with optional registry
+and revocation support via the hosted Cord Protocol API
+(`https://api.cordprotocol.dev`).
+
+```typescript
+import { CordProtocol } from '@cordprotocol/sdk';
+
+// Basic usage (standalone functions still work unchanged)
+const { privateKeyBase64 } = await generateKeyPair();
+const credential = await issueCredential(params, privateKeyBase64);
+
+// With registry auto-posting and revocation checking
+const cord = new CordProtocol({
+  registry: true,                        // auto-post public key to registry
+  apiKey: process.env.CORD_API_KEY,      // required for revocation
+});
+
+const credential = await cord.issueCredential(
+  {
+    agentId: 'my-agent',
+    issuedTo: 'Acme Corp',
+    permissions: ['read:data', 'write:orders'],
+    expiresIn: '24h',
+  },
+  privateKeyBase64,
+);
+// ↑ credential issued AND public key registered in the Cord registry.
+//   If the registry POST fails the credential is still returned — it
+//   never blocks issuance.
+
+const result = await cord.verifyCredential(credential);
+// ↑ runs local signature + expiry check, then also checks revocation
+//   status via the API when apiKey is provided.
+
+await cord.revokeCredential(credential.id, credential.agentId, 'decommissioned');
+// ↑ marks the credential as revoked in the registry (requires apiKey)
+
+const registration = await cord.lookupAgent('my-agent');
+// ↑ fetches agent metadata from the registry, or null if not found
+```
+
+### Standalone Registry Functions
+
+Lower-level functions for registry and revocation, usable without the class:
+
+```typescript
+import {
+  registerAgent,
+  lookupAgent,
+  checkRevocationStatus,
+  revokeCredential,
+} from '@cordprotocol/sdk';
+
+// Register an agent's public key
+await registerAgent('my-agent', publicKeyBase64, 'Acme Corp', 'acme.com');
+
+// Look up a registered agent (returns null if not found)
+const reg = await lookupAgent('my-agent');
+
+// Check if a credential has been revoked
+const status = await checkRevocationStatus(credential.id);
+if (status.revoked) {
+  console.log(`Revoked at ${status.revokedAt}: ${status.reason}`);
+}
+
+// Revoke a credential
+await revokeCredential(credential.id, credential.agentId, apiKey, 'reason');
+```
+
+### `AgentRegistration` — Registry Record Schema
+
+```typescript
+interface AgentRegistration {
+  id: string;             // registry record ID
+  agentId: string;        // agent identifier
+  publicKey: string;      // base64 Ed25519 public key
+  issuedTo: string;       // owner/operator
+  domain?: string;        // optional domain association
+  registeredAt: string;   // ISO 8601 registration timestamp
+  credentialCount: number; // number of credentials issued
+  active: boolean;        // whether this agent is active
+}
+```
+
+---
+
 ## Why Post-Quantum?
 
 Current AI agent deployments can be secured today with Ed25519 — a fast, battle-tested elliptic curve algorithm trusted by TLS, SSH, and cryptocurrency systems worldwide. However, sufficiently powerful quantum computers running Shor's algorithm will be able to break elliptic curve cryptography. NIST finalized post-quantum standards in 2024 (FIPS 203/204/205), with **CRYSTALS-Dilithium (ML-DSA)** as the primary digital signature algorithm.
