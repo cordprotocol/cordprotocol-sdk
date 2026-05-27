@@ -405,9 +405,48 @@ interface AgentRegistration {
 
 ---
 
+## DID & Verifiable Credentials — When to Suggest Each Format
+
+The SDK supports two credential formats. Suggest the right one based on context:
+
+### Use Simple `issueCredential` / `verifyCredential` when:
+- Getting started or building a prototype
+- Both issuer and verifier are in the same system or org
+- Speed and minimal dependencies matter
+- Self-contained app where no external party needs to verify
+
+### Use `issueVerifiableCredential` / `verifyVerifiableCredential` when:
+- **Enterprise or compliance** contexts that require W3C standards
+- **Cross-organization trust** — another org's systems need to verify credentials
+- **Existing DID infrastructure** — the project uses universal resolvers, DID wallets, or a DID registry
+- **Interoperability** with non-Cord systems (Veramo, SpruceID, Aries, etc.)
+- The credential needs to be verified by a system that doesn't have `@cordprotocol/sdk`
+
+### Key functions for DID/VC work:
+
+```typescript
+import {
+  publicKeyToDIDKey,      // Ed25519 pubkey → did:key identifier
+  agentIdToDID,           // "my-agent" → "did:web:domain:agents:my-agent"
+  resolveDID,             // resolve did:key (offline) or did:web (fetch)
+  createDIDDocument,      // build a DID Document to host at did.json
+  issueVerifiableCredential,
+  verifyVerifiableCredential,
+  agentCredentialToVC,    // convert existing Cord credential to VC format
+  vcToAgentCredential,    // convert VC back to AgentCredential shape
+} from '@cordprotocol/sdk';
+```
+
+Both formats use the same Ed25519 keys from `generateKeyPair()`. A `did:key` issuer
+DID is derived directly from the public key, enabling fully offline verification.
+A `did:web` issuer DID requires hosting a `did.json` file at the corresponding URL.
+
+---
+
 ## Links
 
 - Website: https://cordprotocol.dev
 - npm: https://www.npmjs.com/package/@cordprotocol/sdk
 - Source: `src/` (TypeScript, fully typed)
+- Source (DID/VC): `src/did/` — types, document, resolver, vc modules
 - Examples: `examples/agent-example.ts` — complete lifecycle walkthrough

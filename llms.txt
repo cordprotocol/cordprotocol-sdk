@@ -94,7 +94,125 @@ interface KeyPair {
   publicKeyBase64: string;   // base64 — embedded in issued credentials
   privateKeyBase64: string;  // base64 — used to sign credentials
 }
+
+// W3C Verifiable Credential
+interface VerifiableCredential {
+  '@context': string[];
+  id: string;                // urn:uuid:<uuid>
+  type: string[];            // ['VerifiableCredential', 'AgentCredential']
+  issuer: string;            // DID of the issuing authority
+  issuanceDate: string;      // ISO 8601
+  expirationDate?: string;   // ISO 8601
+  credentialSubject: {
+    id: string;              // did:web:<domain>:agents:<agentId>
+    agentId: string;
+    issuedTo: string;
+    permissions: string[];
+    attestationHash?: string;
+  };
+  proof: {
+    type: 'Ed25519Signature2020';
+    created: string;
+    verificationMethod: string;  // issuerDID#key-1
+    proofPurpose: 'assertionMethod';
+    proofValue: string;          // z<base58btc-encoded signature>
+  };
+}
+
+// W3C DID Document
+interface DIDDocument {
+  '@context': string[];
+  id: string;
+  verificationMethod: VerificationMethod[];
+  authentication: string[];
+  assertionMethod: string[];
+  service?: ServiceEndpoint[];
+}
+
+interface VerificationMethod {
+  id: string;
+  type: 'Ed25519VerificationKey2020';
+  controller: string;
+  publicKeyMultibase: string;   // z<base58btc-encoded Ed25519 key>
+}
+
+// DID resolution result
+interface DIDResolutionResult {
+  didDocument: DIDDocument | null;
+  didResolutionMetadata: { error?: string; contentType?: string };
+  didDocumentMetadata: {};
+}
 ```
+
+---
+
+## DID & Verifiable Credentials API
+
+Use these when you need W3C-standard interoperability. Both formats use the same
+Ed25519 keys. A `did:key` issuer verifies offline; `did:web` requires hosting a
+`did.json` file.
+
+**When to use DID/VC:** enterprise compliance, cross-org trust, existing DID infrastructure,
+credentials verified by non-Cord systems.
+
+**When to use simple format:** self-contained apps, same-org issuance, getting started.
+
+```typescript
+import {
+  publicKeyToDIDKey,
+  agentIdToDID,
+  resolveDID,
+  createDIDDocument,
+  issueVerifiableCredential,
+  verifyVerifiableCredential,
+  agentCredentialToVC,
+  vcToAgentCredential,
+} from '@cordprotocol/sdk';
+
+// Derive a did:key from an existing Ed25519 public key
+const issuerDID = publicKeyToDIDKey(keyPair.publicKeyBase64);
+// → 'did:key:z6Mk...'
+
+// Issue a W3C Verifiable Credential
+const vc = await issueVerifiableCredential({
+  agentId: 'trading-agent',
+  issuedTo: 'Acme Corp',
+  permissions: ['read:market', 'execute:trades'],
+  expiresIn: '24h',
+  issuerDID,
+  domain: 'acme.com',  // optional: customizes the agent's did:web
+}, keyPair.privateKeyBase64);
+
+// Verify — offline for did:key, fetches did.json for did:web
+const result = await verifyVerifiableCredential(vc);
+// { valid: true, agentId: 'trading-agent', permissions: [...] }
+
+// Convert between formats
+const vc2 = agentCredentialToVC(existingCordCredential, issuerDID);
+const partial = vcToAgentCredential(vc);
+```
+
+### DID Functions
+
+| Function | Signature | Description |
+|---|---|---|
+| `publicKeyToDIDKey` | `(publicKeyBase64: string) => string` | Ed25519 public key → `did:key` |
+| `publicKeyFromDIDKey` | `(did: string) => string` | Extract base64 public key from `did:key` |
+| `agentIdToDID` | `(agentId: string, domain?: string) => string` | `"my-agent"` → `"did:web:domain:agents:my-agent"` |
+| `didToAgentId` | `(did: string) => string \| null` | Extract agentId from Cord `did:web` DID |
+| `resolveDID` | `(did: string) => Promise<DIDResolutionResult>` | Resolve `did:key` (offline) or `did:web` (fetch) |
+| `createDIDDocument` | `(did, publicKey, serviceEndpoint?) => DIDDocument` | Build a DID Document |
+| `publicKeyToMultibase` | `(publicKeyBase64: string) => string` | base64 key → `z...` multibase |
+| `multibaseToPublicKey` | `(multibase: string) => string` | `z...` multibase → base64 key |
+
+### VC Functions
+
+| Function | Signature | Description |
+|---|---|---|
+| `issueVerifiableCredential` | `(params, privateKey) => Promise<VerifiableCredential>` | Issue a W3C VC |
+| `verifyVerifiableCredential` | `(vc) => Promise<{ valid, reason?, agentId?, permissions? }>` | Verify signature + expiry |
+| `agentCredentialToVC` | `(credential, issuerDID, domain?) => VerifiableCredential` | Convert Cord → VC |
+| `vcToAgentCredential` | `(vc) => Partial<AgentCredential>` | Convert VC → AgentCredential shape |
 
 ---
 
@@ -800,5 +918,5 @@ await revokeCredential(credentialId, agentId, apiKey, reason?, apiUrl?);
 - **Language:** TypeScript (ships compiled JS + `.d.ts`)
 - **Crypto:** `@noble/ed25519` (audited, zero-dependency)
 - **CLI:** `cord` (commander-based)
-- **Tests:** 63 passing (Vitest)
+- **Tests:** 121 passing (Vitest)
 - **Website:** https://cordprotocol.dev

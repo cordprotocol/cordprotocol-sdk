@@ -38,3 +38,32 @@ export {
   checkRevocationStatus,
   revokeCredential,
 } from './registry.js';
+
+// W3C DID & Verifiable Credentials
+export type {
+  DIDDocument,
+  VerificationMethod,
+  ServiceEndpoint,
+  VerifiableCredential,
+  DIDResolutionResult,
+} from './did/types.js';
+export {
+  base58btcEncode,
+  base58btcDecode,
+  publicKeyToMultibase,
+  multibaseToPublicKey,
+  createDIDDocument,
+} from './did/document.js';
+export {
+  agentIdToDID,
+  didToAgentId,
+  resolveDID,
+  publicKeyToDIDKey,
+  publicKeyFromDIDKey,
+} from './did/resolver.js';
+export {
+  issueVerifiableCredential,
+  verifyVerifiableCredential,
+  agentCredentialToVC,
+  vcToAgentCredential,
+} from './did/vc.js';

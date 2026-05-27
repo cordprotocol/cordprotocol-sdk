@@ -318,6 +318,84 @@ interface AgentRegistration {
 
 ---
 
+## DID & Verifiable Credentials
+
+Cord credentials work great for self-contained systems. When you need interoperability with enterprise DID infrastructure, cross-organization trust, or W3C-standard tooling, the SDK also supports W3C Decentralized Identifiers (DIDs) and Verifiable Credentials (VCs).
+
+**Use DID/VC format when:** enterprise compliance requires W3C standards, multiple organizations need to exchange credentials, you have existing DID infrastructure (universal resolvers, wallets), or you need credentials that any DID-aware system can verify.
+
+**Use the simple format when:** you control both issuer and verifier, you want minimal overhead, or you're just getting started.
+
+Both formats use the same Ed25519 keys — you can mix and match in a single system.
+
+```typescript
+import {
+  issueVerifiableCredential,
+  verifyVerifiableCredential,
+  agentIdToDID,
+  resolveDID,
+  publicKeyToDIDKey,
+} from '@cordprotocol/sdk';
+
+// Standard Cord credential (unchanged)
+const credential = await issueCredential(params, privateKey);
+
+// W3C Verifiable Credential (new)
+// Use your key pair to derive a did:key identifier for the issuer
+const issuerDID = publicKeyToDIDKey(keyPair.publicKeyBase64);
+
+const vc = await issueVerifiableCredential({
+  agentId: 'trading-agent',
+  issuedTo: 'Acme Corp',
+  permissions: ['read:market', 'execute:trades'],
+  expiresIn: '24h',
+  issuerDID,                    // did:key (offline-verifiable) or did:web
+  domain: 'cordprotocol.dev',   // optional — for agentId → did:web mapping
+}, keyPair.privateKeyBase64);
+
+// vc is a W3C Verifiable Credential — compatible with any DID-aware system
+console.log(vc.issuer);                        // issuerDID
+console.log(vc.credentialSubject.id);          // did:web:cordprotocol.dev:agents:trading-agent
+console.log(vc.proof.type);                    // 'Ed25519Signature2020'
+
+// Verify — works offline for did:key issuers
+const result = await verifyVerifiableCredential(vc);
+console.log(result.valid);        // true
+console.log(result.agentId);      // 'trading-agent'
+console.log(result.permissions);  // ['read:market', 'execute:trades']
+
+// Resolve a DID — supports did:key (offline) and did:web (fetches did.json)
+const didDoc = await resolveDID('did:web:cordprotocol.dev:agents:trading-agent');
+
+// Convert between formats
+const agentDID = agentIdToDID('trading-agent');
+// → 'did:web:cordprotocol.dev:agents:trading-agent'
+
+// Convert an existing AgentCredential to VC format
+import { agentCredentialToVC, vcToAgentCredential } from '@cordprotocol/sdk';
+const vc2 = agentCredentialToVC(credential, issuerDID);
+const partial = vcToAgentCredential(vc2);  // back to AgentCredential shape
+```
+
+### DID API Reference
+
+| Function | Description |
+|---|---|
+| `publicKeyToDIDKey(publicKeyBase64)` | Derives a `did:key` from an Ed25519 public key |
+| `publicKeyFromDIDKey(did)` | Extracts the public key from a `did:key` |
+| `agentIdToDID(agentId, domain?)` | Converts `"my-agent"` → `"did:web:domain:agents:my-agent"` |
+| `didToAgentId(did)` | Extracts `agentId` from a Cord `did:web` DID, or `null` |
+| `resolveDID(did)` | Resolves `did:key` (offline) or `did:web` (fetch) to a DID Document |
+| `createDIDDocument(did, publicKey, serviceEndpoint?)` | Builds a DID Document for hosting |
+| `publicKeyToMultibase(publicKeyBase64)` | Encodes a key as base58btc multibase (`z...`) |
+| `multibaseToPublicKey(multibase)` | Decodes a multibase key back to base64 |
+| `issueVerifiableCredential(params, privateKey)` | Issues a W3C VC |
+| `verifyVerifiableCredential(vc)` | Verifies signature, expiry, and returns `{ valid, agentId, permissions }` |
+| `agentCredentialToVC(credential, issuerDID, domain?)` | Converts `AgentCredential` → `VerifiableCredential` |
+| `vcToAgentCredential(vc)` | Converts `VerifiableCredential` → `Partial<AgentCredential>` |
+
+---
+
 ## Why Post-Quantum?
 
 Current AI agent deployments can be secured today with Ed25519 — a fast, battle-tested elliptic curve algorithm trusted by TLS, SSH, and cryptocurrency systems worldwide. However, sufficiently powerful quantum computers running Shor's algorithm will be able to break elliptic curve cryptography. NIST finalized post-quantum standards in 2024 (FIPS 203/204/205), with **CRYSTALS-Dilithium (ML-DSA)** as the primary digital signature algorithm.
