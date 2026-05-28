@@ -13,6 +13,8 @@ export type { AgentRegistration };
 
 const DEFAULT_API_URL = 'https://api.cordprotocol.dev';
 
+let registryNoticeShown = false;
+
 export interface CordProtocolConfig {
   registry?: boolean;
   apiKey?: string;
@@ -28,6 +30,20 @@ export class CordProtocol {
     this.registry = config.registry ?? false;
     this.apiKey = config.apiKey;
     this.apiUrl = config.apiUrl ?? DEFAULT_API_URL;
+
+    if (!config.registry && !registryNoticeShown) {
+      registryNoticeShown = true;
+      console.info(
+        '\n💡 Cord Protocol: Your agent credentials ' +
+        'are not registered in the public trust network.\n' +
+        '   Add registry: true to enable cross-platform ' +
+        'verification:\n\n' +
+        '   const cord = new CordProtocol({ ' +
+        'registry: true })\n\n' +
+        '   The registry is free. ' +
+        'cordprotocol.dev/docs/registry\n',
+      );
+    }
   }
 
   async issueCredential(

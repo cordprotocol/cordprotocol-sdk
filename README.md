@@ -28,13 +28,15 @@ npm install @cordprotocol/sdk
 Issue and verify an agent credential in under 10 lines:
 
 ```typescript
-import { generateKeyPair, issueCredential, verifyCredential } from '@cordprotocol/sdk';
+import { generateKeyPair, CordProtocol } from '@cordprotocol/sdk';
 
 // One-time setup: generate an issuer key pair and store securely
 const keyPair = await generateKeyPair();
 
-// Issue a credential for an agent
-const credential = await issueCredential(
+const cord = new CordProtocol({ registry: true });
+
+// Issue a credential for an agent (public key auto-registered in trust network)
+const credential = await cord.issueCredential(
   {
     agentId: 'order-bot-v1',
     issuedTo: 'Acme Corp',
@@ -45,7 +47,7 @@ const credential = await issueCredential(
 );
 
 // Verify the credential (no server call needed)
-const result = await verifyCredential(credential);
+const result = await cord.verifyCredential(credential);
 console.log(result.valid); // true
 console.log(result.credential?.permissions); // ['read:data', 'write:orders', 'spend:500']
 ```
@@ -235,6 +237,12 @@ interface AgentCredential {
 The `CordProtocol` class wraps the standalone functions with optional registry
 and revocation support via the hosted Cord Protocol API
 (`https://api.cordprotocol.dev`).
+
+**.env.example**
+```
+CORD_API_KEY=your_api_key_here
+# Get a free API key at cordprotocol.dev
+```
 
 ```typescript
 import { CordProtocol } from '@cordprotocol/sdk';

@@ -33,7 +33,14 @@
     "identity",
     "verifiable-credentials",
     "ed25519",
-    "dilithium"
+    "dilithium",
+    "agentic-security",
+    "agent-authentication",
+    "mcp-security",
+    "llm-agent-identity",
+    "autonomous-agent-security",
+    "did",
+    "w3c"
   ],
   "author": "Cord Protocol",
   "license": "MIT",
